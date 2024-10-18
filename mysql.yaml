@@ -1,0 +1,7 @@
+- name: mysql config
+  hosts: mysql
+  become: yes
+  vars_files:
+  - /home/ec2-user/credentials.yaml
+  roles:
+  - mysql

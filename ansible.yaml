@@ -1,0 +1,61 @@
+- name: create ec2-instances and route 53 A records
+  hosts: local
+  connection: local
+  vars: 
+      vpc_subnet_id: "subnet-0d6734ba7ac51f684"
+      security_group: "sg-0f2ec98b878c6d63f"
+      image_id: "ami-09c813fb71547fc4f"
+      zone: "gopi-81s.online"
+      instances:
+      - mysql
+      - backend
+      - frontend
+  vars_files:
+  - /home/ec2-user/credentials.yaml
+  tasks:
+  - name: installing boto3 and botocore
+    ansible.builtin.pip:
+     name:
+     - boto3
+     - botocore
+     executable: pip3.9
+
+  - name: create ec2-instances
+    amazon.aws.ec2_instance:
+      name: "{{ item }}" 
+      vpc_subnet_id: "{{ vpc_subnet_id }}"
+      instance_type: "t3.micro"
+      security_group: "{{ security_group }}"
+      image_id: "{{ image_id }}"
+    loop: "{{instances}}"
+    register: ec2_instances
+
+  - name: check the ec2-instances results
+    ansible.builtin.debug:
+      msg: "{{ ec2_instances }}"
+  
+  - name: create route 53 A records for private ip
+    amazon.aws.route53:
+      state: present
+      zone: "{{ zone }}"
+      record: "{{ item.item}}.{{ zone }}"
+      type: A
+      ttl: 1
+      value: "{{ item.instances[0].private_ip_address }}"
+      wait: true
+      overwrite: true
+    loop: "{{ ec2_instances.results }}"
+
+
+  - name: create route 53 A records for public ip
+    amazon.aws.route53:
+      state: present
+      zone: "{{ zone }}"
+      record: "{{ zone }}"
+      type: A
+      ttl: 1
+      value: "{{ item.instances[0].public_ip_address }}"
+      wait: true
+      overwrite: true
+    loop: "{{ ec2_instances.results }}"
+    when: item.item  == "frontend"
